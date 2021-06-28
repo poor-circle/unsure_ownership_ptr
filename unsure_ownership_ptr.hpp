@@ -1,5 +1,5 @@
 #include <memory>
-#include <stdint.h>
+#include <cstdint>
 
 template <typename T>
 class unsure_ownership_ptr
