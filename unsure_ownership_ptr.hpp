@@ -1,5 +1,6 @@
 #include <memory>
 #include <cstdint>
+#include <cassert>
 
 template <typename T>
 class unsure_ownership_ptr
@@ -7,19 +8,40 @@ class unsure_ownership_ptr
     std::unique_ptr<T> pointer;
 
 private:
+    //in x86_64/arm64, the 48th-63th bits should equals to 47th bit
+    //by this, we can hidden the ownership in the 63th bit
+
+    static bool get_47th_bit(T *address) noexcept
+    {
+        static_assert(sizeof(size_t) == 8); //check if is 64bit platform
+        return reinterpret_cast<size_t>(address) & (0x0000F00000000000);
+    }
+
     static T *unzip_ptr(T *address) noexcept
     {
-        return reinterpret_cast<T *>(reinterpret_cast<size_t>(address) & (SIZE_MAX - 1));
+        return reinterpret_cast<T *>(((static_cast<size_t>(get_47th_bit(address)) << 63) | (SIZE_MAX >> 1)) & reinterpret_cast<size_t>(address));
     }
+
     static T *zip_ptr(bool is_owned, T *address) noexcept
     {
-        return reinterpret_cast<T *>((!is_owned) | reinterpret_cast<size_t>(address));
+        return reinterpret_cast<T *>((static_cast<size_t>(!is_owned) << 63) ^ reinterpret_cast<size_t>(address));
+    }
+
+    // if the pointers' 48-63th bits no equals to 47th bit,this func will throw error in debug mode
+    static bool check_ptr(T *address) noexcept
+    {
+        for (int i = 48; i < 64; ++i)
+        {
+            if ((reinterpret_cast<size_t>(address) & ((static_cast<size_t>(1) << i))) != get_47th_bit(address))
+                return false;
+        }
+        return true;
     }
 
 public:
     bool has_ownership() const noexcept
     {
-        return !(reinterpret_cast<size_t>(pointer.get()) & 0x1);
+        return !((reinterpret_cast<size_t>(pointer.get()) & 0xF000000000000000) ^ get_47th_bit(pointer.get()));
     };
     T *get() const noexcept
     {
@@ -37,32 +59,42 @@ public:
     {
         pointer.swap(another.pointer);
     }
-    void reset(std::unique_ptr<T> &&pointer = std::unique_ptr<T>()) noexcept
+    void reset(std::unique_ptr<T> &&another_pointer = std::unique_ptr<T>()) noexcept
     {
-        if (!this->has_ownership())
-        {
+        assert(check_ptr(another_pointer.get()));
+
+        if (!pointer.has_ownership())
+        {   
             pointer.release();
         }
-        pointer.reset(std::move(pointer));
+        pointer.reset(std::move(another_pointer));
     }
     void reset(unsure_ownership_ptr &&another) noexcept
     {
         *this = std::move(another);
     }
-    void reset(bool is_owned, T *pointer) noexcept
+    void reset(bool is_owned, T *another_pointer) noexcept
     {
+        assert(check_ptr(another_pointer));
+
         if (!has_ownership())
         {
             pointer.release();
         }
-        pointer.reset(zip_ptr(is_owned, pointer));
+        pointer.reset(zip_ptr(is_owned, another_pointer));
     }
 
     unsure_ownership_ptr() : pointer() {}
     unsure_ownership_ptr(const unsure_ownership_ptr &another) = delete;
     unsure_ownership_ptr(unsure_ownership_ptr &&another) : pointer(std::move(another.pointer)) {}
-    unsure_ownership_ptr(bool is_owned, T *pointer) : pointer(zip_ptr(is_owned, pointer)) {}
-    unsure_ownership_ptr(std::unique_ptr<T> &&pointer) : pointer(std::move(pointer)) {}
+    unsure_ownership_ptr(bool is_owned, T *another_pointer) : pointer(zip_ptr(is_owned, another_pointer))
+    {
+        assert(check_ptr(another_pointer));
+    }
+    unsure_ownership_ptr(std::unique_ptr<T> &&another_pointer) : pointer(std::move(another_pointer))
+    {
+        assert(check_ptr(another_pointer.get()));
+    }
 
     unsure_ownership_ptr &operator=(const unsure_ownership_ptr &another) = delete;
     unsure_ownership_ptr &operator=(unsure_ownership_ptr &&another) noexcept
@@ -77,6 +109,7 @@ public:
 
     T *operator->() const noexcept
     {
+
         return get();
     }
 

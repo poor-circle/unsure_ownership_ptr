@@ -39,6 +39,13 @@ int main(void)
 
         cout << "if str_ptr has ownership: " << (str_ptr.has_ownership()? "true" : "false") << '\n';
         cout << "string content: " << *str_ptr <<endl;
+
+        unsure_ownership_ptr<char> char_ptr{false,(char *)(str_ptr.get()->data())};
+        cout << char_ptr.get() << endl;
+
+        char_ptr.reset(false,(char *)(str_ptr.get()->data()+1));
+        cout << char_ptr.get() << endl;
+
         //string will be destructed automatically if pointer has ownership
 
         this_thread::sleep_for(100ms);
