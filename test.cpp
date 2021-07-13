@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <thread>
+
 #include "unsure_ownership_ptr.hpp"
 using namespace std;
 
@@ -35,7 +36,9 @@ int main(void)
         auto str_ptr = get_str(choose);
         
         //sizeof(unsure_ownership_ptr<T>)==sizeof(unique_ptr<T>) 
+#ifdef __x86_64__
         static_assert(sizeof(unsure_ownership_ptr<string>)==sizeof(unique_ptr<string>));
+#endif 
 
         cout << "if str_ptr has ownership: " << (str_ptr.has_ownership()? "true" : "false") << '\n';
         cout << "string content: " << *str_ptr <<endl;
