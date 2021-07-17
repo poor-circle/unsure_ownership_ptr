@@ -18,7 +18,7 @@ private:
     static bool get_47th_bit(T *address) noexcept
     {
         static_assert(sizeof(size_t) == 8); //check if is 64bit platform
-        return reinterpret_cast<size_t>(address) & (0x0000F00000000000);
+        return reinterpret_cast<size_t>(address) & (0x0000800000000000);
     }
 #endif
     static T *unzip_ptr(T *address) noexcept
@@ -60,7 +60,7 @@ public:
     bool has_ownership() const noexcept
     {
 #ifdef __x86_64__
-        return !((reinterpret_cast<size_t>(pointer.get()) & 0xF000000000000000) ^ get_47th_bit(pointer.get()));
+        return !((reinterpret_cast<size_t>(pointer.get()) & 0x8000000000000000) ^ get_47th_bit(pointer.get()));
 #else 
         return ownership_flag;
 #endif
